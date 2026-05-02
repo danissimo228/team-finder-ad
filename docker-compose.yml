@@ -1,11 +1,17 @@
 services:
   db:
     image: postgres:16
-    env_file:
-      - .env
     container_name: teamfinder_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=team_finder
+      - POSTGRES_USER=team_finder
+      - POSTGRES_PASSWORD=team_finder
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always

@@ -11,9 +11,8 @@ DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = []
 
-
+print(BASE_DIR)
 # Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -21,6 +20,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    "users",
+    "projects",
 ]
 
 MIDDLEWARE = [
@@ -116,3 +118,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+LOGIN_URL = 'projects:list'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
