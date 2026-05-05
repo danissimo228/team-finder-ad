@@ -97,11 +97,25 @@ docker compose down
 После заполнения `.env` и настройки базы данных можно запустить сервер разработки:
 
 ```bash
+python manage.py makemigrations
+python manage.py migrate
+python manage.py create_test_users
+python manage.py create_test_projects
 python manage.py runserver
 ```
 
-Теперь проект доступен по адресу [http://localhost:8000](http://localhost:8000). 
-Если видите ракету с надписью "The install worked successfully! Congratulations!", то запуск прошёл успешно, Django работает!
-Осталось всего ничего: реализовать весь проект!
+или сразу
 
-Если в процессе разработки способ развертывания приложения поменяется, обновите `readme.md` с пометкой ревьюеру, как запускать и проверять приложение.
+```bash
+docker-compose up -d
+```
+
+Теперь проект доступен по адресу [http://localhost:8000](http://localhost:8000). 
+ПОЧТЫ И ПАРОЛИ ЗАВЕДЕННЫХ ПОЛЬЗОВАТЕЛЕЙ В ФАЙЛЕ creds.txt !!!!!!!!!!!!
+```
+alexey@example.com qwerty
+maria@example.com  qwerty1
+dmitry@example.com qwerty2
+elena@example.com  qwerty3
+admin@example.com. qwerty4
+```
