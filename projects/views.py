@@ -1,16 +1,75 @@
 # projects/views.py
-from django.http import JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .models import Project
-from .forms import ProjectForm
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import BooleanField, Exists, OuterRef, Value
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
+
+from projects.forms import ProjectForm
+from projects.models import Project
+
+
+@login_required
+def toggle_participate(request, project_id):
+    """
+    Добавляет или удаляет текущего пользователя из участников проекта.
+    URL: /projects/<int:project_id>/toggle-participate/
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    project = get_object_or_404(Project, id=project_id)
+
+    # Владелец проекта не может быть участником
+    if project.owner == request.user:
+        return JsonResponse(
+            {"error": "Project owner cannot participate in own project"}, status=400
+        )
+
+    # Переключаем статус участия
+    if request.user in project.participants.all():
+        project.participants.remove(request.user)
+        is_participating = False
+    else:
+        project.participants.add(request.user)
+        is_participating = True
+
+    return JsonResponse(
+        {
+            "status": "ok",
+            "is_participating": is_participating,
+            "participants_count": project.participants.count(),
+        }
+    )
+
+
+@login_required
+def toggle_favorite(request, project_id):
+    """
+    Добавляет или удаляет проект из избранного текущего пользователя.
+    URL: /projects/<int:project_id>/toggle-favorite/
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    project = get_object_or_404(Project, id=project_id)
+
+    if project.favorites.filter(id=request.user.id).exists():
+        project.favorites.remove(request.user)
+        is_favorite = False
+    else:
+        project.favorites.add(request.user)
+        is_favorite = True
+
+    return JsonResponse({"status": "ok", "is_favorite": is_favorite})
 
 
 def create_project_view(request):
     """Создание нового проекта"""
     if not request.user.is_authenticated:
-        return redirect("/users/login")
+        return redirect("users:login")
 
     if request.method == "POST":
         form = ProjectForm(request.POST)
@@ -29,13 +88,13 @@ def create_project_view(request):
         "form": form,
         "is_edit": False,
     }
-    return render(request, "../templates_var1/projects/create-project.html", context)
+    return render(request, "projects/create-project.html", context)
 
 
 def edit_project_view(request, project_id):
     """Редактирование проекта"""
     if not request.user.is_authenticated:
-        return redirect("/users/login")
+        return redirect("users:login")
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -58,46 +117,50 @@ def edit_project_view(request, project_id):
         "is_edit": True,
         "project": project,
     }
-    return render(request, "../templates_var1/projects/create-project.html", context)
+    return render(request, "projects/create-project.html", context)
 
 
 def project_detail_view(request, project_id):
     """Просмотр деталей проекта"""
     project = get_object_or_404(Project, id=project_id)
 
+    is_participant = False
+    if request.user.is_authenticated:
+        is_participant = project.participants.filter(id=request.user.id).exists()
+
     context = {
         "project": project,
         "is_owner": request.user == project.owner,
-        "is_participant": (
-            request.user in project.participants.all()
-            if request.user.is_authenticated
-            else False
-        ),
+        "is_participant": is_participant,
     }
-    return render(request, "../templates_var1/projects/project-details.html", context)
+    return render(request, "projects/project-details.html", context)
 
 
 def project_list_view(request):
-    """Просмотр всех актуальных проектов"""
-    # Получаем все проекты
-    projects = Project.objects.all().order_by("-created_at")
-
-    # Для авторизованных пользователей добавляем предзагрузку избранного
+    projects = Project.objects.select_related("owner").all()
     if request.user.is_authenticated:
-        # Загружаем проекты с аннотацией о избранном
-        favorite_project_ids = request.user.favorites.values_list("id", flat=True)
+        favorites = request.user.favorites.filter(id=OuterRef("id"))
+        projects = projects.annotate(is_favorite=Exists(favorites))
+    else:
+        projects = projects.annotate(
+            is_favorite=Value(False, output_field=BooleanField())
+        )
 
-        for project in projects:
-            # Добавляем атрибут для проверки в шаблоне
-            project.is_favorite = project.id in favorite_project_ids
+    # 10 проектов на страницу, можно 6 как в комментарии
+    paginator = Paginator(projects, 10)
+    page = request.GET.get("page", 1)
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
 
     context = {
-        "projects": projects,
+        "projects": page_obj,
+        "page_obj": page_obj,
     }
-    return render(request, "../templates_var1/projects/project_list.html", context)
-
-
-from django.views.decorators.http import require_POST
+    return render(request, "projects/project_list.html", context)
 
 
 @require_POST
@@ -126,13 +189,11 @@ def toggle_favorite_view(request, project_id):
 
 @login_required
 def favorites_view(request):
-    """
-    Страница избранных проектов пользователя
-    """
+    """Страница избранных проектов пользователя"""
     if not request.user.is_authenticated:
-        return redirect("/users/login")
+        return redirect("users:login")
 
     # Получаем избранные проекты
-    projects = request.user.favorites.all().order_by("-created_at")
+    projects = request.user.favorites.all()
     context = {"projects": projects, "user": request.user}
-    return render(request, "../templates_var1/projects/favorite_projects.html", context)
+    return render(request, "projects/favorite_projects.html", context)

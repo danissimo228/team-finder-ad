@@ -153,7 +153,7 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'✓ Создан пользователь: {username} (пароль: {user_data["password"]})'
+                    f"✓ Создан пользователь: {username} (пароль: {user_data['password']})"
                 )
             )
 

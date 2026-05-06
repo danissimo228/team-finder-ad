@@ -1,24 +1,41 @@
 # projects/models.py
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 from django.urls import reverse
 
 
 class Project(models.Model):
+    # Константы для статусов
+    STATUS_OPEN = "open"
+    STATUS_CLOSED = "closed"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_COMPLETED = "completed"
+
     STATUS_CHOICES = [
-        ("open", "Открыт"),
-        ("closed", "Закрыт"),
-        ("in_progress", "В разработке"),
-        ("completed", "Завершен"),
+        (STATUS_OPEN, "Открыт"),
+        (STATUS_CLOSED, "Закрыт"),
+        (STATUS_IN_PROGRESS, "В разработке"),
+        (STATUS_COMPLETED, "Завершен"),
     ]
 
-    name = models.CharField(max_length=200, verbose_name="Название проекта")
+    # Константы для длин полей
+    MAX_NAME_LENGTH = 200
+    MAX_GITHUB_URL_LENGTH = 500
+    MAX_STATUS_LENGTH = 20
+
+    name = models.CharField(max_length=MAX_NAME_LENGTH, verbose_name="Название проекта")
     description = models.TextField(verbose_name="Описание проекта")
     github_url = models.URLField(
-        max_length=500, blank=True, null=True, verbose_name="GitHub ссылка"
+        max_length=MAX_GITHUB_URL_LENGTH,
+        blank=True,
+        null=True,
+        verbose_name="GitHub ссылка",
     )
     status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="open", verbose_name="Статус"
+        max_length=MAX_STATUS_LENGTH,
+        choices=STATUS_CHOICES,
+        default=STATUS_OPEN,
+        verbose_name="Статус",
     )
     owner = models.ForeignKey(
         User,
@@ -36,7 +53,7 @@ class Project(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
     favorites = models.ManyToManyField(
         User,
-        related_name="favorites",  # Это создаст атрибут favorites у User
+        related_name="favorites",
         blank=True,
     )
 

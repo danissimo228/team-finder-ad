@@ -3,18 +3,48 @@
 и список пользователей с расширенной фильтрацией.
 """
 
-from django.shortcuts import get_object_or_404, render, redirect
-from django.contrib.auth import login, logout, update_session_auth_hash
-from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Count
+from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.models import User
 from django.core.paginator import Paginator
+from django.db.models import Count
+from django.shortcuts import get_object_or_404, redirect, render
 
 from projects.models import Project
 from users.models import UserProfile
-from .forms import RegistrationForm, LoginForm, UpdateUserProfileForm
-from django.contrib.auth.forms import PasswordChangeForm
+
+from .forms import LoginForm, RegistrationForm, UpdateUserProfileForm, UserProfileDTO
+
+# Константы для фильтров
+FILTER_OWNERS_OF_FAVORITE_PROJECTS = "owners-of-favorite-projects"
+FILTER_OWNERS_OF_PARTICIPATING_PROJECTS = "owners-of-participating-projects"
+FILTER_INTERESTED_IN_MY_PROJECTS = "interested-in-my-projects"
+FILTER_PARTICIPANTS_OF_MY_PROJECTS = "participants-of-my-projects"
+
+# Константы для пагинации
+USERS_PER_PAGE = 12
+
+# Константы для сообщений
+MESSAGE_PROFILE_UPDATED = "Профиль успешно обновлен!"
+MESSAGE_PASSWORD_CHANGED = "Ваш пароль был успешно изменен!"
+
+
+def paginate_queryset(request, queryset, items_per_page=USERS_PER_PAGE):
+    """
+    Универсальная функция для пагинации queryset.
+
+    Args:
+        request: HTTP request object
+        queryset: QuerySet для пагинации
+        items_per_page: Количество элементов на странице
+
+    Returns:
+        Page object: Объект страницы с элементами
+    """
+    paginator = Paginator(queryset, items_per_page)
+    page_number = request.GET.get("page")
+    return paginator.get_page(page_number)
 
 
 def register_view(request):
@@ -32,7 +62,6 @@ def register_view(request):
     Returns:
         HttpResponse: Страница регистрации или редирект на список проектов
     """
-
     if request.method == "POST":
         form = RegistrationForm(request.POST)
         if form.is_valid():
@@ -56,11 +85,11 @@ def register_view(request):
             UserProfile.objects.create(user=user)
 
             login(request, user)
-            return redirect("/projects/list/")
+            return redirect("projects:list_projects")
     else:
         form = RegistrationForm()
 
-    return render(request, "../templates_var1/users/register.html", {"form": form})
+    return render(request, "users/register.html", {"form": form})
 
 
 def login_view(request):
@@ -83,11 +112,11 @@ def login_view(request):
         if form.is_valid():
             user = form.cleaned_data["user"]
             login(request, user)
-            return redirect("/projects/list/")
+            return redirect("projects:list_projects")
     else:
         form = LoginForm()
 
-    return render(request, "../templates_var1/users/login.html", {"form": form})
+    return render(request, "users/login.html", {"form": form})
 
 
 def logout_view(request):
@@ -105,7 +134,7 @@ def logout_view(request):
         HttpResponse: Редирект на страницу входа
     """
     logout(request)
-    return redirect("/users/login")
+    return redirect("users:login")
 
 
 def user_profile_view(request, user_id):
@@ -122,25 +151,24 @@ def user_profile_view(request, user_id):
         HttpResponse: Страница профиля пользователя
     """
     user = get_object_or_404(User, id=user_id, is_active=True)
-    owned_projects = user.owned_projects.all().order_by("-created_at")
+    owned_projects = user.owned_projects.all()
 
-    user_profile = UserProfile.objects.get(user=user)
-    user.avatar = user_profile.avatar
-    user.phone = user_profile.phone
-    user.github_url = user_profile.github_url
-    user.about = user_profile.about
+    # Создаём DTO вместо динамического добавления атрибутов
+    user_dto = UserProfileDTO(user)
+
     context = {
-        "user": user,
+        "user": user_dto,
         "request": request,
         "owned_projects": owned_projects,
     }
 
-    return render(request, "../templates_var1/users/user-details.html", context)
+    return render(request, "users/user-details.html", context)
 
 
 def edit_profile(request):
     """
     Редактирование профиля текущего пользователя.
+
     URL: /users/edit-profile/
 
     Args:
@@ -150,7 +178,7 @@ def edit_profile(request):
         HttpResponse: Страница редактирования профиля или редирект на профиль
     """
     if not request.user.is_authenticated:
-        return redirect("/users/login")
+        return redirect("users:login")
 
     user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
@@ -164,10 +192,8 @@ def edit_profile(request):
 
         if form.is_valid():
             form.save()
-            messages.success(request, "Профиль успешно обновлен!")
+            messages.success(request, MESSAGE_PROFILE_UPDATED)
             return redirect("users:user_profile", user_id=request.user.id)
-        else:
-            messages.error(request, "Пожалуйста, исправьте ошибки в форме")
     else:
         form = UpdateUserProfileForm(instance=user_profile, user_instance=request.user)
 
@@ -176,12 +202,13 @@ def edit_profile(request):
         "user": request.user,
     }
 
-    return render(request, "../templates_var1/users/edit_profile.html", context)
+    return render(request, "users/edit_profile.html", context)
 
 
 def change_password(request):
     """
     Смена пароля пользователя.
+
     URL: /users/change-password/
 
     Args:
@@ -191,7 +218,7 @@ def change_password(request):
         HttpResponse: Страница смены пароля или редирект на профиль
     """
     if not request.user.is_authenticated:
-        return redirect("/users/login")
+        return redirect("users:login")
 
     if request.method == "POST":
         form = PasswordChangeForm(user=request.user, data=request.POST)
@@ -200,81 +227,53 @@ def change_password(request):
             user = form.save()
             # Обновляем сессию, чтобы пользователь не вышел
             update_session_auth_hash(request, user)
-            messages.success(request, "Ваш пароль был успешно изменен!")
+            messages.success(request, MESSAGE_PASSWORD_CHANGED)
             return redirect("users:user_profile", user_id=request.user.id)
-        else:
-            messages.error(request, "Пожалуйста, исправьте ошибки в форме")
     else:
         form = PasswordChangeForm(user=request.user)
 
     context = {
         "form": form,
     }
-    return render(request, "../templates_var1/users/change_password.html", context)
+    return render(request, "users/change_password.html", context)
 
 
 def participants_list_view(request):
     """
     Список участников платформы с фильтрацией.
-    URL: /users/list/
-
-    Args:
-        request: HTTP request object
-
-    Query Parameters:
-        filter: Тип фильтрации (str, optional)
-        page: Номер страницы для пагинации (int, optional)
-
-    Returns:
-        HttpResponse: Страница со списком участников
     """
-    # Базовый запрос - исключаем текущего пользователя
+    # Базовый запрос - исключаем текущего пользователя и подгружаем профили
     if request.user.is_authenticated:
         users = User.objects.exclude(id=request.user.id)
     else:
         users = User.objects.all()
 
-    # Получаем параметр фильтра
     active_filter = request.GET.get("filter", "")
 
     # Применяем фильтры для авторизованных пользователей
     if request.user.is_authenticated and active_filter:
-        if active_filter == "owners-of-favorite-projects":
-            # Авторы избранных проектов
-            favorite_projects_ids = request.user.favorites.values_list("id", flat=True)
+        if active_filter == FILTER_OWNERS_OF_FAVORITE_PROJECTS:
             users = users.filter(
-                owned_projects__id__in=favorite_projects_ids
+                owned_projects__in=request.user.favorites.all()
             ).distinct()
 
-        elif active_filter == "owners-of-participating-projects":
-            # Авторы проектов, в которых я участвую
-            participating_projects_ids = (
-                request.user.participating_projects.values_list("id", flat=True)
-            )
+        elif active_filter == FILTER_OWNERS_OF_PARTICIPATING_PROJECTS:
             users = users.filter(
-                owned_projects__id__in=participating_projects_ids
+                owned_projects__in=request.user.participating_projects.all()
             ).distinct()
 
-        elif active_filter == "interested-in-my-projects":
-            # Пользователи, которым нравятся мои проекты
-            my_projects_ids = Project.objects.filter(owner=request.user).values_list(
-                "id", flat=True
-            )
-
-            users = users.filter(favorites__id__in=my_projects_ids).distinct()
-
-        elif active_filter == "participants-of-my-projects":
-            # Участники моих проектов
-            my_projects_ids = Project.objects.filter(owner=request.user).values_list(
-                "id", flat=True
-            )
-
+        elif active_filter == FILTER_INTERESTED_IN_MY_PROJECTS:
             users = users.filter(
-                participating_projects__id__in=my_projects_ids
+                favorites__in=Project.objects.filter(owner=request.user)
             ).distinct()
 
-    # Аннотируем дополнительной информацией
-    users = users.annotate(
+        elif active_filter == FILTER_PARTICIPANTS_OF_MY_PROJECTS:
+            users = users.filter(
+                participating_projects__in=Project.objects.filter(owner=request.user)
+            ).distinct()
+
+    # Аннотируем дополнительной информацией и подгружаем профили одним запросом
+    users = users.select_related("profile").annotate(
         projects_count=Count("owned_projects", distinct=True),
         participating_count=Count("participating_projects", distinct=True),
         favorites_count=Count("favorites", distinct=True),
@@ -284,26 +283,14 @@ def participants_list_view(request):
     users = users.order_by("first_name", "last_name")
 
     # Пагинация
-    paginator = Paginator(users, 12)
-    page_number = request.GET.get("page")
-    participants = paginator.get_page(page_number)
+    participants_page = paginate_queryset(request, users, USERS_PER_PAGE)
 
-    # Добавляем атрибуты для совместимости с шаблоном
-    for user in participants:
-        user.name = user.first_name or user.username
-        user.surname = user.last_name or ""
-        user.avatar = None  # Будет заменено при наличии UserProfile
-        user.about = ""
-
-        # Если есть профиль, подгружаем аватар и about
-        if hasattr(user, "profile") and user.profile:
-            user.avatar = user.profile.avatar
-            user.about = user.profile.about
+    # Создаём список DTO вместо динамического добавления атрибутов
+    participants_list = [UserProfileDTO(user) for user in participants_page]
 
     context = {
-        "participants": participants,
+        "participants": participants_list,
         "active_filter": active_filter,
-        "paginator": paginator,
     }
 
-    return render(request, "../templates_var1/users/participants.html", context)
+    return render(request, "users/participants.html", context)

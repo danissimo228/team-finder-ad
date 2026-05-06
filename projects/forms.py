@@ -1,6 +1,39 @@
 # projects/forms.py
 from django import forms
-from .models import Project
+
+from projects.models import Project
+
+# Константы для валидации названия проекта
+MIN_NAME_LENGTH = 3
+MAX_NAME_LENGTH = 200
+
+# Константы для валидации описания проекта
+MIN_DESCRIPTION_LENGTH = 10
+MAX_DESCRIPTION_LENGTH = 5000
+
+# Константы для Textarea
+DESCRIPTION_ROWS = 6
+
+# Константы для GitHub URL
+GITHUB_URL_PREFIX = "https://github.com/"
+GITHUB_URL_PLACEHOLDER = "https://github.com/username/project"
+
+# Константы для placeholder'ов
+NAME_PLACEHOLDER = "Введите название проекта"
+DESCRIPTION_PLACEHOLDER = "Опишите ваш проект..."
+
+# Константы для сообщений об ошибках
+ERROR_NAME_TOO_SHORT = (
+    f"Название проекта должно содержать минимум {MIN_NAME_LENGTH} символа"
+)
+ERROR_NAME_TOO_LONG = f"Название проекта не должно превышать {MAX_NAME_LENGTH} символов"
+ERROR_DESCRIPTION_TOO_SHORT = (
+    f"Описание должно содержать минимум {MIN_DESCRIPTION_LENGTH} символов"
+)
+ERROR_DESCRIPTION_TOO_LONG = (
+    f"Описание не должно превышать {MAX_DESCRIPTION_LENGTH} символов"
+)
+ERROR_INVALID_GITHUB_URL = "Введите корректную ссылку на GitHub репозиторий"
 
 
 class ProjectForm(forms.ModelForm):
@@ -10,20 +43,20 @@ class ProjectForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "placeholder": "Введите название проекта",
+                    "placeholder": NAME_PLACEHOLDER,
                     "class": "form-control",
                 }
             ),
             "description": forms.Textarea(
                 attrs={
-                    "placeholder": "Опишите ваш проект...",
-                    "rows": 6,
+                    "placeholder": DESCRIPTION_PLACEHOLDER,
+                    "rows": DESCRIPTION_ROWS,
                     "class": "form-control",
                 }
             ),
             "github_url": forms.URLInput(
                 attrs={
-                    "placeholder": "https://github.com/username/project",
+                    "placeholder": GITHUB_URL_PLACEHOLDER,
                     "class": "form-control",
                 }
             ),
@@ -41,28 +74,22 @@ class ProjectForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get("name")
-        if len(name) < 3:
-            raise forms.ValidationError(
-                "Название проекта должно содержать минимум 3 символа"
-            )
-        if len(name) > 200:
-            raise forms.ValidationError(
-                "Название проекта не должно превышать 200 символов"
-            )
+        if len(name) < MIN_NAME_LENGTH:
+            raise forms.ValidationError(ERROR_NAME_TOO_SHORT)
+        if len(name) > MAX_NAME_LENGTH:
+            raise forms.ValidationError(ERROR_NAME_TOO_LONG)
         return name
 
     def clean_description(self):
         description = self.cleaned_data.get("description")
-        if len(description) < 10:
-            raise forms.ValidationError("Описание должно содержать минимум 10 символов")
-        if len(description) > 5000:
-            raise forms.ValidationError("Описание не должно превышать 5000 символов")
+        if len(description) < MIN_DESCRIPTION_LENGTH:
+            raise forms.ValidationError(ERROR_DESCRIPTION_TOO_SHORT)
+        if len(description) > MAX_DESCRIPTION_LENGTH:
+            raise forms.ValidationError(ERROR_DESCRIPTION_TOO_LONG)
         return description
 
     def clean_github_url(self):
         url = self.cleaned_data.get("github_url")
-        if url and not url.startswith("https://github.com/"):
-            raise forms.ValidationError(
-                "Введите корректную ссылку на GitHub репозиторий"
-            )
+        if url and not url.startswith(GITHUB_URL_PREFIX):
+            raise forms.ValidationError(ERROR_INVALID_GITHUB_URL)
         return url
