@@ -65,25 +65,10 @@ def register_view(request):
     if request.method == "POST":
         form = RegistrationForm(request.POST)
         if form.is_valid():
-            name = form.cleaned_data["name"]
-            surname = form.cleaned_data["surname"]
-            email = form.cleaned_data["email"]
-            password = form.cleaned_data["password"]
+            # Создаем пользователя через метод формы
+            user = form.save(request)
 
-            # Генерируем username из email
-            username = email.split("@")[0]
-            if User.objects.filter(username=username).exists():
-                username = f"{username}_{User.objects.count()}"
-
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                first_name=name,
-                last_name=surname,
-            )
-            UserProfile.objects.create(user=user)
-
+            # Выполняем вход для созданного пользователя
             login(request, user)
             return redirect("projects:list_projects")
     else:

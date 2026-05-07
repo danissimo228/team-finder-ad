@@ -1,7 +1,9 @@
 # projects/views.py
+from http import HTTPStatus
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import BooleanField, Exists, OuterRef, Value
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +13,31 @@ from projects.forms import ProjectForm
 from projects.models import Project
 
 
+def paginate_queryset(request, queryset, items_per_page=10):
+    """
+    Универсальная функция для пагинации queryset.
+
+    Args:
+        request: HTTP request объект
+        queryset: QuerySet для пагинации
+        items_per_page: количество элементов на странице
+
+    Returns:
+        page_obj: объект страницы
+    """
+    paginator = Paginator(queryset, items_per_page)
+    page = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    return page_obj
+
+
 @login_required
 def toggle_participate(request, project_id):
     """
@@ -18,18 +45,23 @@ def toggle_participate(request, project_id):
     URL: /projects/<int:project_id>/toggle-participate/
     """
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse(
+            {"error": "Method not allowed"}, status=HTTPStatus.METHOD_NOT_ALLOWED
+        )
 
     project = get_object_or_404(Project, id=project_id)
 
     # Владелец проекта не может быть участником
     if project.owner == request.user:
         return JsonResponse(
-            {"error": "Project owner cannot participate in own project"}, status=400
+            {"error": "Project owner cannot participate in own project"},
+            status=HTTPStatus.BAD_REQUEST,
         )
 
-    # Переключаем статус участия
-    if request.user in project.participants.all():
+    # Переключаем статус участия (оптимизированная версия)
+    is_participant = project.participants.filter(id=request.user.id).exists()
+
+    if is_participant:
         project.participants.remove(request.user)
         is_participating = False
     else:
@@ -41,7 +73,8 @@ def toggle_participate(request, project_id):
             "status": "ok",
             "is_participating": is_participating,
             "participants_count": project.participants.count(),
-        }
+        },
+        status=HTTPStatus.OK,
     )
 
 
@@ -52,7 +85,9 @@ def toggle_favorite(request, project_id):
     URL: /projects/<int:project_id>/toggle-favorite/
     """
     if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        return JsonResponse(
+            {"error": "Method not allowed"}, status=HTTPStatus.METHOD_NOT_ALLOWED
+        )
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -63,7 +98,9 @@ def toggle_favorite(request, project_id):
         project.favorites.add(request.user)
         is_favorite = True
 
-    return JsonResponse({"status": "ok", "is_favorite": is_favorite})
+    return JsonResponse(
+        {"status": "ok", "is_favorite": is_favorite}, status=HTTPStatus.OK
+    )
 
 
 def create_project_view(request):
@@ -137,7 +174,9 @@ def project_detail_view(request, project_id):
 
 
 def project_list_view(request):
+    """Список проектов с пагинацией"""
     projects = Project.objects.select_related("owner").all()
+
     if request.user.is_authenticated:
         favorites = request.user.favorites.filter(id=OuterRef("id"))
         projects = projects.annotate(is_favorite=Exists(favorites))
@@ -146,15 +185,8 @@ def project_list_view(request):
             is_favorite=Value(False, output_field=BooleanField())
         )
 
-    # 10 проектов на страницу, можно 6 как в комментарии
-    paginator = Paginator(projects, 10)
-    page = request.GET.get("page", 1)
-    try:
-        page_obj = paginator.page(page)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # Используем функцию пагинации
+    page_obj = paginate_queryset(request, projects, items_per_page=10)
 
     context = {
         "projects": page_obj,
@@ -183,17 +215,26 @@ def toggle_favorite_view(request, project_id):
             "is_favorite": is_favorite,
             "message": message,
             "favorites_count": project.favorites.count(),
-        }
+        },
+        status=HTTPStatus.OK,
     )
 
 
 @login_required
 def favorites_view(request):
-    """Страница избранных проектов пользователя"""
+    """Страница избранных проектов пользователя с пагинацией"""
     if not request.user.is_authenticated:
         return redirect("users:login")
 
     # Получаем избранные проекты
-    projects = request.user.favorites.all()
-    context = {"projects": projects, "user": request.user}
+    favorites_queryset = request.user.favorites.all()
+
+    # Добавляем пагинацию для избранных проектов (например, 6 на страницу)
+    page_obj = paginate_queryset(request, favorites_queryset, items_per_page=6)
+
+    context = {
+        "projects": page_obj,
+        "page_obj": page_obj,
+        "user": request.user,
+    }
     return render(request, "projects/favorite_projects.html", context)
