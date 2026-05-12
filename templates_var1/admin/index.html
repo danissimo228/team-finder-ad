@@ -1,0 +1,26 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div id="content-main">
+    <!-- Добавляем кнопку статистики -->
+    <div class="module" style="margin-bottom: 20px;">
+        <table style="width: 100%;">
+            <caption>
+                <a href="{% url 'admin:request_stats' %}" class="section" title="Статистика запросов">
+                    📊 Статистика запросов
+                </a>
+            </caption>
+            <tr>
+                <th scope="row">
+                    <a href="{% url 'admin:request_stats' %}">Просмотр статистики HTTP запросов</a>
+                </th>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
+    
+    <!-- Остальной контент из родительского шаблона -->
+    {{ block.super }}
+</div>
+{% endblock %}

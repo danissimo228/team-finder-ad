@@ -1,4 +1,4 @@
-from django.contrib import admin
+from team_finder.admin import admin_site
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -6,7 +6,7 @@ from django.views.generic.base import RedirectView
 
 urlpatterns = [
     path("", RedirectView.as_view(url="/projects/list/", permanent=False)),
-    path("admin/", admin.site.urls),
+    path('admin/', admin_site.urls),
     path("users/", include("users.urls")),
     path("projects/", include("projects.urls")),
 ]
