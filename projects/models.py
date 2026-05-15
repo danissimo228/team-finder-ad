@@ -1,28 +1,27 @@
 # projects/models.py
 from django.contrib.auth.models import User
 from django.db import models
-from django.urls import reverse
+
+
+STATUS_OPEN = "open"
+STATUS_CLOSED = "closed"
+STATUS_IN_PROGRESS = "in_progress"
+STATUS_COMPLETED = "completed"
+
+STATUS_CHOICES = [
+    (STATUS_OPEN, "Открыт"),
+    (STATUS_CLOSED, "Закрыт"),
+    (STATUS_IN_PROGRESS, "В разработке"),
+    (STATUS_COMPLETED, "Завершен"),
+]
+
+
+MAX_NAME_LENGTH = 200
+MAX_GITHUB_URL_LENGTH = 500
+MAX_STATUS_LENGTH = 20
 
 
 class Project(models.Model):
-    # Константы для статусов
-    STATUS_OPEN = "open"
-    STATUS_CLOSED = "closed"
-    STATUS_IN_PROGRESS = "in_progress"
-    STATUS_COMPLETED = "completed"
-
-    STATUS_CHOICES = [
-        (STATUS_OPEN, "Открыт"),
-        (STATUS_CLOSED, "Закрыт"),
-        (STATUS_IN_PROGRESS, "В разработке"),
-        (STATUS_COMPLETED, "Завершен"),
-    ]
-
-    # Константы для длин полей
-    MAX_NAME_LENGTH = 200
-    MAX_GITHUB_URL_LENGTH = 500
-    MAX_STATUS_LENGTH = 20
-
     name = models.CharField(max_length=MAX_NAME_LENGTH, verbose_name="Название проекта")
     description = models.TextField(verbose_name="Описание проекта")
     github_url = models.URLField(
@@ -61,9 +60,3 @@ class Project(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Проект"
         verbose_name_plural = "Проекты"
-
-    def __str__(self):
-        return self.name
-
-    def get_absolute_url(self):
-        return reverse("projects:project_detail", kwargs={"project_id": self.id})

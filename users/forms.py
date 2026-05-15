@@ -6,7 +6,7 @@ from django import forms
 from django.contrib.auth import authenticate, password_validation
 from django.contrib.auth.models import User
 
-from users.models import UserProfile
+from users.models import UserInfo
 
 # Константы для валидации полей
 MIN_PASSWORD_LENGTH = 6
@@ -114,7 +114,7 @@ class RegistrationForm(forms.Form):
 
     def save(self, request):
         """
-        Создает нового пользователя и профиль.
+        Создает нового пользователя и информацию о нем.
 
         Args:
             request: HTTP request object для выполнения входа
@@ -139,7 +139,7 @@ class RegistrationForm(forms.Form):
             first_name=name,
             last_name=surname,
         )
-        UserProfile.objects.create(user=user)
+        UserInfo.objects.create(user=user)
 
         return user
 
@@ -261,7 +261,7 @@ class UserProfileForm(forms.ModelForm):
     Форма для редактирования профиля пользователя (устаревшая).
 
     Note:
-        Эта форма устарела. Используйте UpdateUserProfileForm.
+        Эта форма устарела. Используйте UpdateUserInfoForm.
     """
 
     name = forms.CharField(
@@ -329,23 +329,23 @@ class UserProfileForm(forms.ModelForm):
 
         if commit:
             user.save()
-            # Сохраняем профиль
-            profile, _ = UserProfile.objects.get_or_create(user=user)
-            profile.about = self.cleaned_data.get("about", "")
-            profile.phone = self.cleaned_data.get("phone", "")
-            profile.github_url = self.cleaned_data.get("github_url", "")
+            # Сохраняем информацию о пользователе
+            user_info, _ = UserInfo.objects.get_or_create(user=user)
+            user_info.about = self.cleaned_data.get("about", "")
+            user_info.phone = self.cleaned_data.get("phone", "")
+            user_info.github_url = self.cleaned_data.get("github_url", "")
             if self.cleaned_data.get("avatar"):
-                profile.avatar = self.cleaned_data.get("avatar")
-            profile.save()
+                user_info.avatar = self.cleaned_data.get("avatar")
+            user_info.save()
 
         return user
 
 
-class UpdateUserProfileForm(forms.ModelForm):
+class UpdateUserInfoForm(forms.ModelForm):
     """
-    Форма для обновления профиля пользователя.
+    Форма для обновления информации о пользователе.
 
-    Эта форма работает с моделью UserProfile и одновременно обновляет
+    Эта форма работает с моделью UserInfo и одновременно обновляет
     поля в связанной модели User (first_name, last_name).
     """
 
@@ -363,7 +363,7 @@ class UpdateUserProfileForm(forms.ModelForm):
     )
 
     class Meta:
-        model = UserProfile
+        model = UserInfo
         fields = ["avatar", "about", "phone", "github_url"]
         widgets = {
             "about": forms.Textarea(
@@ -408,8 +408,8 @@ class UpdateUserProfileForm(forms.ModelForm):
                     field.widget.attrs["class"] = CSS_CLASS_FORM_CONTROL
 
     def save(self, commit=True):
-        """Сохраняет изменения в UserProfile и User."""
-        profile = super().save(commit=commit)
+        """Сохраняет изменения в UserInfo и User."""
+        user_info = super().save(commit=commit)
 
         if self.user_instance:
             self.user_instance.first_name = self.cleaned_data.get("name", "")
@@ -418,16 +418,10 @@ class UpdateUserProfileForm(forms.ModelForm):
             if commit:
                 self.user_instance.save()
 
-        return profile
+        return user_info
 
 
-class UserProfileDTO:
-    """
-    DTO (Data Transfer Object) для представления пользователя с данными профиля.
-
-    Позволяет избежать динамического добавления атрибутов к модели User.
-    """
-
+class FullUser:
     def __init__(self, user: User):
         self.id = user.id
         self.username = user.username
@@ -435,28 +429,22 @@ class UserProfileDTO:
         self.first_name = user.first_name or ""
         self.last_name = user.last_name or ""
 
-        # Имя и фамилия для отображения (как в оригинальном коде)
         self.name = user.first_name or user.username
         self.surname = user.last_name or ""
 
-        # Получаем данные из профиля, если он существует
         try:
-            profile = user.profile
-            self.avatar = profile.avatar
-            self.phone = profile.phone
-            self.github_url = profile.github_url
-            self.about = profile.about or ""
+            user_info = user.info
+            self.avatar = user_info.avatar
+            self.phone = user_info.phone
+            self.github_url = user_info.github_url
+            self.about = user_info.about or ""
             self.owned_projects = user.owned_projects
-        except UserProfile.DoesNotExist:
+        except UserInfo.DoesNotExist:
             self.avatar = None
             self.phone = None
             self.github_url = None
             self.about = ""
 
     def get_full_name(self) -> str:
-        """Возвращает полное имя пользователя."""
         full_name = f"{self.first_name} {self.last_name}".strip()
         return full_name or self.username
-
-    def __str__(self) -> str:
-        return self.get_full_name()

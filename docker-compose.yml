@@ -44,15 +44,8 @@ services:
       sh -c "
         echo 'Waiting for database...' &&
         sleep 3 &&
-        echo 'Running makemigrations...' &&
         python manage.py makemigrations --noinput &&
-        echo 'Running migrate...' &&
         python manage.py migrate --noinput &&
-        echo 'Creating test users...' &&
-        python manage.py create_test_users --force &&
-        echo 'Creating test projects...' &&
-        python manage.py create_test_projects --force &&
-        echo 'Starting server...' &&
         python manage.py runserver 0.0.0.0:8000
       "
 

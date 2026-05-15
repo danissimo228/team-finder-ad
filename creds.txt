@@ -1,5 +1,0 @@
-alexey@example.com qwerty
-maria@example.com  qwerty1
-dmitry@example.com qwerty2
-elena@example.com  qwerty3
-admin@example.com. qwerty4

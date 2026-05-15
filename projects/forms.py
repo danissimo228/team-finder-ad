@@ -1,28 +1,16 @@
-# projects/forms.py
 from django import forms
 
 from projects.models import Project
 
-# Константы для валидации названия проекта
 MIN_NAME_LENGTH = 3
 MAX_NAME_LENGTH = 200
-
-# Константы для валидации описания проекта
 MIN_DESCRIPTION_LENGTH = 10
 MAX_DESCRIPTION_LENGTH = 5000
-
-# Константы для Textarea
 DESCRIPTION_ROWS = 6
-
-# Константы для GitHub URL
 GITHUB_URL_PREFIX = "https://github.com/"
 GITHUB_URL_PLACEHOLDER = "https://github.com/username/project"
-
-# Константы для placeholder'ов
 NAME_PLACEHOLDER = "Введите название проекта"
 DESCRIPTION_PLACEHOLDER = "Опишите ваш проект..."
-
-# Константы для сообщений об ошибках
 ERROR_NAME_TOO_SHORT = (
     f"Название проекта должно содержать минимум {MIN_NAME_LENGTH} символа"
 )
